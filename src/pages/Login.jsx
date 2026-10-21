@@ -3,7 +3,19 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import Button from "../components/Button";
 import AuthLayout from "../components/AuthLayout";
-import { Shield, KeyRound, CheckCircle2, AlertCircle, Info, Sparkles } from "lucide-react";
+import { Shield, KeyRound, CheckCircle2, AlertCircle, Info, Sparkles, Eye, EyeOff } from "lucide-react";
+
+// Valid PRN: 16-digit integer starting with 2022, 2023, 2024, 2025, or 2026
+const PRN_RE = /^(2022|2023|2024|2025|2026)\d{12}$/;
+const VALID_PREFIXES = ["2022", "2023", "2024", "2025", "2026"];
+
+const DEMO_PRNS = [
+  { batch: "2022", prn: "2022012345678901" },
+  { batch: "2023", prn: "2023123456789012" },
+  { batch: "2024", prn: "2024567890123456" },
+  { batch: "2025", prn: "2025001122334455" },
+  { batch: "2026", prn: "2026998877665544" },
+];
 
 function Login() {
   const { isAuthenticated, loading, login } = useContext(AuthContext);
@@ -15,7 +27,6 @@ function Login() {
       ? `${location.state.from.pathname || "/"}${location.state.from.search || ""}`
       : "/";
 
-  // PRN-based login state
   const [prn, setPrn] = useState("");
   const [password, setPassword] = useState("");
   const [isManualPassword, setIsManualPassword] = useState(false);
@@ -23,26 +34,26 @@ function Login() {
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Secondary admin sign-in toggle
   const [showAdminEmail, setShowAdminEmail] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
 
-  // Handle PRN change with strict 16-digit integer & starting with 2022 checks
+  // Live sanitization: integer only, max 16 digits
   function handlePrnChange(e) {
-    // Only accept numeric digits, maximum 16 digits
     const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 16);
     setPrn(digitsOnly);
 
-    // Auto-fill default password as first 6 digits of that PRN if user hasn't typed custom password
+    // Default password is the first 6 digits of that PRN
     if (!isManualPassword) {
-      if (digitsOnly.length >= 6 && digitsOnly.startsWith("2022")) {
+      if (digitsOnly.length >= 6) {
         setPassword(digitsOnly.slice(0, 6));
       } else if (digitsOnly.length === 0) {
         setPassword("");
       }
     }
 
-    // Live validation feedback
     setErrors((prev) => {
       const next = { ...prev };
       delete next.prn;
@@ -64,13 +75,13 @@ function Login() {
   }
 
   function handleUseDefaultPassword() {
-    if (prn.length >= 6 && prn.startsWith("2022")) {
+    if (prn.length >= 6) {
       setPassword(prn.slice(0, 6));
       setIsManualPassword(false);
     }
   }
 
-  function handleQuickFillDemo(demoPrn = "2022012345678901") {
+  function handleQuickFillDemo(demoPrn) {
     setPrn(demoPrn);
     setPassword(demoPrn.slice(0, 6));
     setIsManualPassword(false);
@@ -78,38 +89,42 @@ function Login() {
     setFormError("");
   }
 
+  const hasValidPrefix = VALID_PREFIXES.some((p) => prn.startsWith(p));
+  const isPrnCompleteAndValid = PRN_RE.test(prn);
+
   async function handleSubmit(e) {
     e.preventDefault();
 
+    // Staff/Admin email login handler
     if (showAdminEmail) {
       if (!adminEmail.trim() || !adminPassword) {
-        setFormError("Please enter admin email and password.");
+        setFormError("Please enter staff/admin email and password.");
         return;
       }
       setIsSubmitting(true);
       try {
-        await login(adminEmail.trim(), adminPassword);
+        await login({ email: adminEmail.trim(), password: adminPassword });
         navigate(from, { replace: true });
       } catch (err) {
-        setFormError(err.message || "Failed to log in.");
+        setFormError(err.message || "Could not log in as admin.");
       } finally {
         setIsSubmitting(false);
       }
       return;
     }
 
+    // PRN Login validation
     const nextErrors = {};
 
-    // Validate PRN
     if (!prn) {
       nextErrors.prn = "PRN is required.";
-    } else if (!prn.startsWith("2022")) {
-      nextErrors.prn = "PRN must start with 2022 (e.g., 2022012345678901).";
+    } else if (!hasValidPrefix) {
+      nextErrors.prn = "PRN must start with 2022, 2023, 2024, 2025, or 2026.";
     } else if (prn.length !== 16) {
       nextErrors.prn = `PRN must be exactly 16 digits (currently ${prn.length} digits).`;
     }
 
-    // Default password is first 6 digits of PRN
+    // Default password is first 6 digits of that PRN
     const activePassword = password || (prn.length >= 6 ? prn.slice(0, 6) : "");
     if (!activePassword) {
       nextErrors.password = "Password is required.";
@@ -122,13 +137,13 @@ function Login() {
 
     setIsSubmitting(true);
     try {
-      await login(prn, activePassword);
+      await login({ prn, password: activePassword });
       navigate(from, { replace: true });
     } catch (error) {
       console.error("Login error:", error);
       setFormError(
         (error && error.message) ||
-          "Could not log in with this PRN. Please check your PRN and password."
+          "Could not sign in with this PRN. Please check your credentials."
       );
     } finally {
       setIsSubmitting(false);
@@ -137,16 +152,14 @@ function Login() {
 
   if (loading) {
     return (
-      <div className="w-full min-w-0 bg-paper">
-        <div className="mx-auto w-full max-w-md px-4 py-16">
-          <div
-            className="rounded-card border border-line bg-surface p-8 text-center"
-            role="status"
-          >
-            <p className="text-sm font-semibold text-mute">
-              Checking your session…
-            </p>
-          </div>
+      <div className="flex w-full min-w-0 flex-1 items-center justify-center bg-paper px-4 py-16">
+        <div
+          className="w-full max-w-md rounded-card border border-line bg-surface p-8 text-center"
+          role="status"
+        >
+          <p className="text-sm font-semibold text-mute">
+            Checking your session…
+          </p>
         </div>
       </div>
     );
@@ -156,33 +169,33 @@ function Login() {
     return <Navigate to={from} replace />;
   }
 
-  const isPrnValidSoFar = prn.startsWith("2022") && prn.length === 16;
+  const footer = (
+    <div className="text-center text-xs text-mute">
+      <span>GCOEC Lost &amp; Found Portal &bull; </span>
+      <span>For assistance, contact the </span>
+      <span className="font-semibold text-ink">Campus Security Office</span>.
+    </div>
+  );
 
   return (
     <AuthLayout
       description="Government College of Engineering, Chandrapur"
-      footer={
-        <div className="text-center text-xs text-mute">
-          <span>Need help? Contact </span>
-          <span className="font-semibold text-ink">Campus Student Affairs</span>
-          <span> or Lost &amp; Found Desk.</span>
-        </div>
-      }
+      footer={footer}
     >
-      <div className="flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brick/10 text-brick">
-          <Shield size={18} />
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 items-center justify-center rounded-control bg-brick/10 text-brick">
+          <Shield size={19} />
         </span>
-        <h2 className="font-serif text-2xl font-bold text-ink">PRN Sign In</h2>
+        <h1 className="type-title text-2xl font-bold text-ink">Sign In</h1>
       </div>
 
-      <p className="mt-2 text-sm leading-relaxed text-mute">
-        Enter your 16-digit university <strong>PRN</strong> starting with <strong>2022</strong>. The default password is the first 6 digits of that PRN.
+      <p className="mt-2 text-sm leading-6 text-mute">
+        Enter your 16-digit university <strong>PRN</strong> (batches 2022–2026). The default password is the first 6 digits of your PRN.
       </p>
 
       {formError && (
         <div
-          className="mt-5 rounded-lg border border-lost/30 bg-lost/10 p-4 text-sm text-lost"
+          className="mt-4 rounded-control border border-lost/30 bg-lost/10 p-3.5 text-sm text-lost animate-alert-in"
           role="alert"
         >
           <div className="flex items-center gap-2 font-semibold">
@@ -193,44 +206,51 @@ function Login() {
         </div>
       )}
 
-      {/* One-click demo test credentials */}
-      <div className="mt-4 rounded-xl border border-line/70 bg-paper/60 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
-            <Sparkles size={14} className="text-brick" />
-            <span>Quick Test Demo PRN</span>
+      {/* Quick-test demo batches */}
+      {!showAdminEmail && (
+        <div className="mt-4 rounded-card border border-line/70 bg-paper/60 p-3 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 font-semibold text-ink">
+              <Sparkles size={13} className="text-brick" />
+              <span>Quick Test Demo PRN:</span>
+            </span>
+            <span className="text-[11px] text-mute">Auto-fills 16-digit PRN &amp; password</span>
           </div>
-          <button
-            type="button"
-            onClick={() => handleQuickFillDemo("2022012345678901")}
-            className="rounded-md border border-brick/30 bg-brick/5 px-2.5 py-1 text-xs font-bold text-brick hover:bg-brick/10 cursor-pointer transition-colors"
-          >
-            Auto-Fill Demo
-          </button>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {DEMO_PRNS.map((item) => (
+              <button
+                key={item.batch}
+                type="button"
+                onClick={() => handleQuickFillDemo(item.prn)}
+                className={`rounded px-2.5 py-1 text-xs font-mono font-medium transition-colors cursor-pointer ${
+                  prn === item.prn
+                    ? "bg-brick text-white font-bold"
+                    : "border border-line bg-surface text-ink hover:bg-paper"
+                }`}
+              >
+                Batch {item.batch}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-mute">
-          <span>PRN: <strong className="text-ink">2022012345678901</strong></span>
-          <span>&bull;</span>
-          <span>Password: <strong className="text-ink">202201</strong></span>
-        </div>
-      </div>
+      )}
 
-      <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-5">
+      <form onSubmit={handleSubmit} noValidate className="mt-5 space-y-4">
         {!showAdminEmail ? (
           <>
-            {/* PRN FIELD */}
+            {/* PRN INPUT (Title: PRN) */}
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <label
                   htmlFor="login-prn"
                   className="block text-sm font-semibold text-ink"
                 >
-                  PRN (Permanent Registration Number)
+                  PRN
                   <span className="ml-1 text-lost" aria-hidden="true">*</span>
                 </label>
                 <span
                   className={`font-mono text-xs ${
-                    prn.length === 16 && prn.startsWith("2022")
+                    isPrnCompleteAndValid
                       ? "font-bold text-canopy"
                       : "text-mute"
                   }`}
@@ -249,19 +269,19 @@ function Login() {
                   value={prn}
                   onChange={handlePrnChange}
                   autoComplete="username"
-                  placeholder="e.g. 2022012345678901"
+                  placeholder="e.g. 2024123456789012"
                   maxLength={16}
                   required
                   aria-invalid={errors.prn ? "true" : "false"}
-                  className={`w-full min-h-[46px] rounded-lg border font-mono px-3.5 py-2.5 text-sm text-ink placeholder:text-mute/70 transition-colors focus:outline-none focus:ring-2 focus:ring-brick/20 ${
+                  className={`w-full min-h-[44px] rounded-control border font-mono px-3.5 py-2.5 text-sm text-ink placeholder:text-mute/70 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                     errors.prn
-                      ? "border-lost bg-lost/5 focus:border-lost"
-                      : isPrnValidSoFar
-                      ? "border-canopy bg-found-tint/30 focus:border-canopy"
-                      : "border-line bg-surface hover:border-mute/50 focus:border-brick"
+                      ? "border-lost bg-lost/5"
+                      : isPrnCompleteAndValid
+                      ? "border-canopy bg-found/5"
+                      : "border-line bg-surface hover:border-mute/40"
                   }`}
                 />
-                {isPrnValidSoFar && (
+                {isPrnCompleteAndValid && (
                   <span className="pointer-events-none absolute right-3 top-3 text-canopy">
                     <CheckCircle2 size={18} />
                   </span>
@@ -275,12 +295,15 @@ function Login() {
               ) : (
                 <p className="mt-1.5 text-xs text-mute flex items-center gap-1">
                   <Info size={12} className="shrink-0" />
-                  <span>Must be a 16-digit integer starting with <strong>2022</strong></span>
+                  <span>
+                    Must be a 16-digit integer starting with{" "}
+                    <strong>2022, 2023, 2024, 2025, or 2026</strong>.
+                  </span>
                 </p>
               )}
             </div>
 
-            {/* PASSWORD FIELD */}
+            {/* PASSWORD INPUT */}
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <label
@@ -291,13 +314,13 @@ function Login() {
                   <span className="ml-1 text-lost" aria-hidden="true">*</span>
                 </label>
 
-                {prn.length >= 6 && prn.startsWith("2022") && (
+                {prn.length >= 6 && hasValidPrefix && (
                   <button
                     type="button"
                     onClick={handleUseDefaultPassword}
-                    className="text-xs text-brick hover:underline cursor-pointer"
+                    className="text-xs text-primary hover:underline cursor-pointer"
                   >
-                    Set to default ({prn.slice(0, 6)})
+                    Use default ({prn.slice(0, 6)})
                   </button>
                 )}
               </div>
@@ -311,24 +334,25 @@ function Login() {
                   onChange={handlePasswordChange}
                   autoComplete="current-password"
                   placeholder={
-                    prn.length >= 6 && prn.startsWith("2022")
+                    prn.length >= 6 && hasValidPrefix
                       ? `Default: ${prn.slice(0, 6)}`
                       : "First 6 digits of PRN"
                   }
                   required
                   aria-invalid={errors.password ? "true" : "false"}
-                  className={`w-full min-h-[46px] rounded-lg border font-mono px-3.5 py-2.5 pr-12 text-sm text-ink placeholder:text-mute/70 transition-colors focus:outline-none focus:ring-2 focus:ring-brick/20 ${
+                  className={`w-full min-h-[44px] rounded-control border font-mono px-3.5 py-2.5 pr-12 text-sm text-ink placeholder:text-mute/70 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                     errors.password
-                      ? "border-lost bg-lost/5 focus:border-lost"
-                      : "border-line bg-surface hover:border-mute/50 focus:border-brick"
+                      ? "border-lost bg-lost/5"
+                      : "border-line bg-surface hover:border-mute/40"
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((s) => !s)}
                   className="absolute right-3 top-3 text-mute hover:text-ink cursor-pointer text-xs font-medium"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? "Hide" : "Show"}
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
 
@@ -340,13 +364,13 @@ function Login() {
                 <p className="mt-1.5 text-xs text-mute flex items-center gap-1">
                   <KeyRound size={12} className="shrink-0" />
                   <span>
-                    Default password is the first 6 digits of that PRN{" "}
-                    {prn.startsWith("2022") && prn.length >= 6 ? (
-                      <code className="rounded bg-paper px-1 py-0.5 font-bold text-brick">
+                    Default password is the first 6 digits of your PRN{" "}
+                    {prn.length >= 6 && hasValidPrefix ? (
+                      <code className="rounded bg-paper px-1 py-0.5 font-bold text-ink">
                         {prn.slice(0, 6)}
                       </code>
                     ) : (
-                      "(e.g. 202201)"
+                      "(e.g. 202412)"
                     )}
                   </span>
                 </p>
@@ -354,18 +378,18 @@ function Login() {
             </div>
           </>
         ) : (
-          /* Secondary Admin Email Login */
+          /* Secondary staff / admin email sign-in */
           <>
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-ink">
-                Admin / Staff Email
+                Staff / Admin Email
               </label>
               <input
                 type="email"
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
                 placeholder="admin@gcoec.ac.in"
-                className="w-full min-h-[46px] rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink"
+                className="w-full min-h-[44px] rounded-control border border-line bg-surface px-3.5 py-2.5 text-sm text-ink"
               />
             </div>
             <div>
@@ -377,7 +401,7 @@ function Login() {
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
                 placeholder="admin123"
-                className="w-full min-h-[46px] rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink"
+                className="w-full min-h-[44px] rounded-control border border-line bg-surface px-3.5 py-2.5 text-sm text-ink"
               />
             </div>
           </>
@@ -388,9 +412,13 @@ function Login() {
           variant="primary"
           disabled={isSubmitting}
           aria-disabled={isSubmitting}
-          className="w-full min-h-[46px] text-base font-semibold"
+          className="w-full min-h-[44px] text-base font-semibold"
         >
-          {isSubmitting ? "Signing in with PRN…" : "Sign In with PRN"}
+          {isSubmitting
+            ? "Signing in..."
+            : showAdminEmail
+            ? "Sign In as Admin"
+            : "Sign In with PRN"}
         </Button>
 
         <div className="pt-2 text-center">
@@ -400,11 +428,11 @@ function Login() {
               setShowAdminEmail((s) => !s);
               setFormError("");
             }}
-            className="text-xs text-mute hover:text-brick underline cursor-pointer"
+            className="text-xs text-mute hover:text-ink underline cursor-pointer"
           >
             {showAdminEmail
-              ? "← Back to Student PRN Login"
-              : "Security Staff / Admin login"}
+              ? "&larr; Return to Student PRN Login"
+              : "Staff / Administrator Sign In"}
           </button>
         </div>
       </form>

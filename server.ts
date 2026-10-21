@@ -304,10 +304,10 @@ app.post("/api/auth/login", (req: Request, res: Response) => {
   if (prn !== undefined && String(prn).trim() !== "") {
     const rawPrn = String(prn).trim();
 
-    // Must be exactly 16 digits and start with 2022
-    if (!/^\d{16}$/.test(rawPrn) || !rawPrn.startsWith("2022")) {
+    // Must be a 16-digit integer starting with 2022, 2023, 2024, 2025, or 2026
+    if (!/^(2022|2023|2024|2025|2026)\d{12}$/.test(rawPrn)) {
       return res.status(400).json({
-        message: "PRN must be a 16-digit integer starting with 2022 (e.g. 2022012345678901).",
+        message: "PRN must be a 16-digit integer starting with 2022, 2023, 2024, 2025, or 2026 (e.g. 2024012345678901).",
       });
     }
 
@@ -383,7 +383,7 @@ app.post("/api/auth/login", (req: Request, res: Response) => {
   }
 
   return res.status(400).json({
-    message: "PRN is required. Please provide a 16-digit PRN starting with 2022.",
+    message: "PRN is required. Please provide a 16-digit PRN starting with 2022, 2023, 2024, 2025, or 2026.",
   });
 });
 

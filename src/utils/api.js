@@ -1,24 +1,26 @@
+const isLocalhost =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1");
+
 export const API_URL =
-  import.meta.env.VITE_API_URL !== undefined
-    ? import.meta.env.VITE_API_URL
-    : "";
+  import.meta.env.VITE_API_URL ||
+  (isLocalhost
+    ? import.meta.env.DEV
+      ? "" // Vite proxies /api to the backend, keeping requests same-origin.
+      : "http://localhost:5000"
+    : typeof window !== "undefined"
+      ? window.location.origin
+      : "http://localhost:5000");
 
 export async function apiRequest(path, { method = "GET", body } = {}) {
   let response;
-  const token = typeof window !== "undefined" ? localStorage.getItem("campusfind_token") : null;
-  const headers = {};
-  if (body !== undefined) {
-    headers["Content-Type"] = "application/json";
-  }
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
   try {
     response = await fetch(`${API_URL}${path}`, {
       method,
       credentials: "include",
-      headers,
+      headers:
+        body !== undefined ? { "Content-Type": "application/json" } : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {

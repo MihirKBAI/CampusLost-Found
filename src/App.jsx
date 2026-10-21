@@ -1,7 +1,9 @@
 import { Routes, Route } from "react-router-dom";
+
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import ScrollToTop from "./components/ScrollToTop";
+
 import Home from "./pages/Home";
 import LostItemsPage from "./pages/LostItemsPage";
 import FoundItemsPage from "./pages/FoundItemsPage";
@@ -11,12 +13,13 @@ import ItemDetails from "./pages/ItemDetails";
 import RecoveryRequestsPage from "./pages/RecoveryRequestsPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ChangePassword from "./pages/ChangePassword";
 import MyReportsPage from "./pages/MyReportsPage";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import CCTVPage from "./pages/CCTVPage";
 
-export default function App() {
+function App() {
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink font-sans">
       <a
@@ -25,8 +28,11 @@ export default function App() {
       >
         Skip to main content
       </a>
+
       <ScrollToTop />
+
       <Navbar />
+
       <main id="main-content" className="flex w-full flex-1 flex-col">
         <Routes>
           <Route path="/" element={<Home />} />
@@ -44,6 +50,14 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route
+            path="/change-password"
+            element={
+              <ProtectedRoute>
+                <ChangePassword />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/my-reports"
             element={
               <ProtectedRoute>
@@ -54,7 +68,10 @@ export default function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
+
       <Footer />
     </div>
   );
 }
+
+export default App;
