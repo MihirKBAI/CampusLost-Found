@@ -2,6 +2,7 @@ import { useContext, useEffect, useId, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import BrandMark from "./BrandMark";
+import AdminUploaderModal from "./AdminUploaderModal";
 
 function navLinkClass({ isActive }) {
   return [
@@ -20,7 +21,7 @@ function accountLinkClass({ isActive }) {
 }
 
 function Navbar() {
-  const { isAuthenticated, logout } = useContext(AuthContext);
+  const { isAuthenticated, logout, isAdmin } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
   const onLoginPage = location.pathname === "/login";
@@ -29,6 +30,7 @@ function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
   const menuId = useId();
   const accountId = useId();
   const reportId = useId();
@@ -397,6 +399,20 @@ function Navbar() {
                     >
                       Recovery Requests
                     </NavLink>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setAccountOpen(false);
+                          closeMenu();
+                          setAdminModalOpen(true);
+                        }}
+                        className="block w-full min-h-[40px] px-3 py-2 text-left text-sm font-medium text-ink hover:bg-paper"
+                      >
+                        Approved Uploaders
+                      </button>
+                    )}
                     <div className="my-1 border-t border-line" />
                     <button
                       type="button"
@@ -579,6 +595,18 @@ function Navbar() {
                     >
                       My Reports
                     </NavLink>
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeMenu();
+                          setAdminModalOpen(true);
+                        }}
+                        className="flex min-h-[44px] w-full cursor-pointer items-center rounded-control px-3 text-base font-medium text-ink/75 hover:bg-surface hover:text-ink text-left"
+                      >
+                        Approved Uploaders
+                      </button>
+                    ) : null}
                   </>
                 ) : (
                   <NavLink
@@ -635,6 +663,11 @@ function Navbar() {
           </>
         )}
       </nav>
+
+      <AdminUploaderModal
+        isOpen={adminModalOpen}
+        onClose={() => setAdminModalOpen(false)}
+      />
     </header>
   );
 }

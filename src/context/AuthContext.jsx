@@ -95,7 +95,33 @@ function AuthProvider({ children }) {
     }
   }
 
+  async function fetchAdminUsers() {
+    const data = await apiRequest("/api/admin/users");
+    return data && data.users ? data.users : [];
+  }
+
+  async function toggleUploaderApproval(userId, isApproved) {
+    const data = await apiRequest(`/api/admin/users/${userId}/approve-uploader`, {
+      method: "PATCH",
+      body: isApproved !== undefined ? { isApproved } : {},
+    });
+    return data && data.user;
+  }
+
   const permissions = (user && user.permissions) || {};
+  const isApprovedUploader = Boolean(
+    user &&
+      (user.isAdmin ||
+        user.isApprovedUploader ||
+        user.is_approved_uploader ||
+        user.can_upload_items)
+  );
+  const canViewRevealedImages = Boolean(
+    user &&
+      (user.isAdmin ||
+        isApprovedUploader ||
+        (permissions && permissions.viewRevealedImages))
+  );
 
   return (
     <AuthContext.Provider
@@ -104,6 +130,8 @@ function AuthProvider({ children }) {
         loading,
         isAuthenticated: Boolean(user),
         isAdmin: Boolean(user && user.isAdmin),
+        isApprovedUploader,
+        canViewRevealedImages,
         isStaff: Boolean(user && user.role === "staff"),
         role: (user && user.role) || "student",
         mustChangePassword: Boolean(user && user.mustChangePassword),
@@ -113,6 +141,8 @@ function AuthProvider({ children }) {
         changePassword,
         logout,
         refreshUser,
+        fetchAdminUsers,
+        toggleUploaderApproval,
       }}
     >
       {children}

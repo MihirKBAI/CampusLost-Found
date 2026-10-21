@@ -25,6 +25,7 @@ interface User {
   password: string;
   createdAt: string;
   isAdmin: boolean;
+  isApprovedUploader: boolean;
 }
 
 interface Item {
@@ -37,6 +38,7 @@ interface Item {
   dateFound?: string;
   contact: string;
   imageData?: string | null;
+  hasOriginalImage?: boolean;
   userId?: number | null;
   createdAt: string;
 }
@@ -76,6 +78,7 @@ const users: User[] = [
     password: "admin123",
     createdAt: new Date().toISOString(),
     isAdmin: true,
+    isApprovedUploader: true,
   },
   {
     id: 2,
@@ -85,10 +88,21 @@ const users: User[] = [
     password: "202201",
     createdAt: new Date().toISOString(),
     isAdmin: false,
+    isApprovedUploader: false,
+  },
+  {
+    id: 3,
+    name: "Aarti Sharma (Campus Desk Staff)",
+    email: "staff@gcoec.ac.in",
+    prn: "2022023456789012",
+    password: "202202",
+    createdAt: new Date().toISOString(),
+    isAdmin: false,
+    isApprovedUploader: true,
   },
 ];
 
-let nextUserId = 3;
+let nextUserId = 4;
 let nextLostId = 7;
 let nextFoundId = 5;
 let nextRecoveryId = 2;
@@ -103,7 +117,7 @@ const lostItems: Item[] = [
     location: "Library",
     dateLost: "2026-08-29",
     contact: "Campus Lost & Found Office",
-    imageData: null,
+    imageData: "/images/everyday-carry.jpg",
     userId: 1,
     createdAt: new Date().toISOString(),
   },
@@ -127,7 +141,7 @@ const lostItems: Item[] = [
     location: "Canteen",
     dateLost: "2026-08-12",
     contact: "Campus Lost & Found Office",
-    imageData: null,
+    imageData: "/images/school-bag.jpg",
     userId: 2,
     createdAt: new Date().toISOString(),
   },
@@ -178,7 +192,7 @@ const foundItems: Item[] = [
     location: "Auditorium",
     dateFound: "2026-08-25",
     contact: "Campus Lost & Found Office",
-    imageData: null,
+    imageData: "/images/everyday-carry.jpg",
     userId: 1,
     createdAt: new Date().toISOString(),
   },
@@ -190,7 +204,7 @@ const foundItems: Item[] = [
     location: "Mechanical Department",
     dateFound: "2026-08-09",
     contact: "Campus Lost & Found Office",
-    imageData: null,
+    imageData: "/images/classroom.jpg",
     userId: 1,
     createdAt: new Date().toISOString(),
   },
@@ -280,6 +294,23 @@ function safeUser(u: User) {
     prn: u.prn,
     createdAt: u.createdAt,
     isAdmin: u.isAdmin,
+    isApprovedUploader: Boolean(u.isApprovedUploader),
+    canViewRevealedImages: Boolean(u.isAdmin || u.isApprovedUploader),
+  };
+}
+
+function maskItemForViewer(item: Item, viewer: User | null) {
+  const canReveal = Boolean(
+    viewer &&
+      (viewer.isAdmin ||
+        viewer.isApprovedUploader ||
+        (item.userId && String(item.userId) === String(viewer.id)))
+  );
+
+  return {
+    ...item,
+    hasOriginalImage: Boolean(item.imageData),
+    imageData: canReveal ? item.imageData : null,
   };
 }
 
@@ -326,6 +357,7 @@ app.post("/api/auth/login", (req: Request, res: Response) => {
         password: defaultPassword,
         createdAt: new Date().toISOString(),
         isAdmin: rawPrn === "2022000000000001",
+        isApprovedUploader: rawPrn === "2022000000000001",
       };
       users.push(user);
     }
@@ -406,6 +438,7 @@ app.post("/api/auth/register", (req: Request, res: Response) => {
     password: String(password),
     createdAt: new Date().toISOString(),
     isAdmin: normalized.includes("admin"),
+    isApprovedUploader: normalized.includes("admin") || normalized.includes("staff"),
   };
 
   users.push(newUser);
@@ -432,9 +465,42 @@ app.post("/api/auth/logout", (_req: Request, res: Response) => {
   res.json({ message: "Logged out successfully" });
 });
 
+// Admin: Users List
+app.get("/api/admin/users", (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  if (!user || !user.isAdmin) {
+    return res.status(403).json({ message: "Admin clearance required." });
+  }
+  res.json({ users: users.map(safeUser) });
+});
+
+// Admin: Toggle Uploader Approval
+app.patch("/api/admin/users/:id/approve-uploader", (req: Request, res: Response) => {
+  const admin = getAuthenticatedUser(req);
+  if (!admin || !admin.isAdmin) {
+    return res.status(403).json({ message: "Admin clearance required." });
+  }
+
+  const id = Number(req.params.id);
+  const target = users.find((u) => u.id === id);
+  if (!target) {
+    return res.status(404).json({ message: "User not found." });
+  }
+
+  const { isApproved } = req.body || {};
+  target.isApprovedUploader =
+    isApproved !== undefined ? Boolean(isApproved) : !target.isApprovedUploader;
+
+  res.json({
+    message: `User ${target.name} uploader approval set to ${target.isApprovedUploader}.`,
+    user: safeUser(target),
+  });
+});
+
 // Lost Items: List
-app.get("/api/lost-items", (_req: Request, res: Response) => {
-  res.json({ items: lostItems });
+app.get("/api/lost-items", (req: Request, res: Response) => {
+  const viewer = getAuthenticatedUser(req);
+  res.json({ items: lostItems.map((i) => maskItemForViewer(i, viewer)) });
 });
 
 // Lost Items: Detail
@@ -444,7 +510,8 @@ app.get("/api/lost-items/:id", (req: Request, res: Response) => {
   if (!item) {
     return res.status(404).json({ message: "Lost item not found." });
   }
-  res.json({ item });
+  const viewer = getAuthenticatedUser(req);
+  res.json({ item: maskItemForViewer(item, viewer) });
 });
 
 // Lost Items: Create
@@ -511,8 +578,9 @@ app.delete("/api/lost-items/:id", (req: Request, res: Response) => {
 });
 
 // Found Items: List
-app.get("/api/found-items", (_req: Request, res: Response) => {
-  res.json({ items: foundItems });
+app.get("/api/found-items", (req: Request, res: Response) => {
+  const viewer = getAuthenticatedUser(req);
+  res.json({ items: foundItems.map((i) => maskItemForViewer(i, viewer)) });
 });
 
 // Found Items: Detail
@@ -522,7 +590,8 @@ app.get("/api/found-items/:id", (req: Request, res: Response) => {
   if (!item) {
     return res.status(404).json({ message: "Found item not found." });
   }
-  res.json({ item });
+  const viewer = getAuthenticatedUser(req);
+  res.json({ item: maskItemForViewer(item, viewer) });
 });
 
 // Found Items: Create

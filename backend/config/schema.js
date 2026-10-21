@@ -80,6 +80,7 @@ async function ensureSchema() {
     await ensureColumn(client, 'users', 'prn', 'VARCHAR(16)')
     await ensureColumn(client, 'users', 'must_change_password', 'BOOLEAN NOT NULL DEFAULT FALSE')
     await ensureColumn(client, 'users', 'can_review_recovery', 'BOOLEAN NOT NULL DEFAULT FALSE')
+    await ensureColumn(client, 'users', 'is_approved_uploader', 'BOOLEAN NOT NULL DEFAULT FALSE')
 
     await client.query(`
       ALTER TABLE users

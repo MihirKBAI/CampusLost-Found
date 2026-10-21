@@ -114,7 +114,7 @@ function ItemDetails({ type }) {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { user, isAdmin } = useContext(AuthContext);
+  const { user, isAdmin, canViewRevealedImages } = useContext(AuthContext);
 
   const lostCtx = useContext(LostItemContext);
   const foundCtx = useContext(FoundItemContext);
@@ -710,10 +710,45 @@ function ItemDetails({ type }) {
                   >
                     <ItemImage
                       type={type}
+                      item={item}
                       imageData={item.imageData}
                       alt={`Photo of ${displayName}`}
                       className="h-72 w-full sm:h-80 lg:h-96"
+                      forceRevealDefault={canViewRevealedImages}
                     />
+                  </div>
+
+                  <div className="mt-3 rounded-control border border-line bg-paper/60 p-3 text-xs leading-relaxed text-mute">
+                    {canViewRevealedImages ? (
+                      <div className="flex items-start gap-2">
+                        <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-canopy" aria-hidden="true" />
+                        <div>
+                          <p className="font-semibold text-ink">Administrative / Verified Clearance</p>
+                          <p className="mt-0.5">You have permission to view and toggle original item photos for dispute resolution and identity confirmation.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="mt-0.5 h-3.5 w-3.5 shrink-0 text-mute"
+                          aria-hidden="true"
+                        >
+                          <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                        <div>
+                          <p className="font-semibold text-ink">Protected Item Photo</p>
+                          <p className="mt-0.5">Generic vector avatar displayed. To protect items against fraudulent claims, unmasked photos are only accessible to administrators and verified uploaders.</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

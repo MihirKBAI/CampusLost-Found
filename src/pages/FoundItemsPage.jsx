@@ -1,5 +1,6 @@
 import { useContext, useMemo, useState } from "react";
 import { FoundItemContext } from "../context/FoundItemContext";
+import { AuthContext } from "../context/AuthContext";
 import FilterBar from "../components/FilterBar";
 import ItemCard from "../components/ItemCard";
 import PageShell from "../components/PageShell";
@@ -12,6 +13,8 @@ import Reveal from "../components/Reveal";
 function FoundItemsPage() {
   const { foundItems, deleteFoundItem, updateFoundItem, isLoading, loadError } =
     useContext(FoundItemContext);
+  const { canViewRevealedImages } = useContext(AuthContext);
+  const [autoRevealPhotos, setAutoRevealPhotos] = useState(false);
 
   const [search, setSearch] = useState(() => {
     const saved = sessionStorage.getItem("campusfind:found:search");
@@ -118,12 +121,27 @@ function FoundItemsPage() {
       ) : (
         <div className="min-w-0">
           <h2 className="sr-only">Found item listings</h2>
-          <p
-            className="mb-6 border-b border-line pb-3.5 text-sm font-medium text-ink/80"
-            role="status"
-          >
-            {statusText}
-          </p>
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3.5">
+            <p className="text-sm font-medium text-ink/80" role="status">
+              {statusText}
+            </p>
+            {canViewRevealedImages ? (
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-canopy/30 bg-canopy/5 px-3 py-1 text-xs font-semibold text-canopy transition-colors hover:bg-canopy/10">
+                <input
+                  type="checkbox"
+                  checked={autoRevealPhotos}
+                  onChange={(e) => setAutoRevealPhotos(e.target.checked)}
+                  className="rounded border-canopy/50 text-canopy focus:ring-canopy cursor-pointer"
+                />
+                <span>Auto-reveal original photos</span>
+              </label>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-xs text-mute" title="Generic vector avatars shown. Only admin and approved uploaders can view original photos.">
+                <span className="h-1.5 w-1.5 rounded-full bg-canopy/60" aria-hidden="true" />
+                Generic vector avatars active (Privacy protected)
+              </span>
+            )}
+          </div>
           <ul className="grid grid-cols-1 items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {filteredItems.map((item, index) => (
               <Reveal as="li" key={item.id} delay={Math.min(index, 5) * 50} className="min-w-0">
@@ -132,6 +150,7 @@ function FoundItemsPage() {
                   item={item}
                   onUpdate={updateFoundItem}
                   onDelete={deleteFoundItem}
+                  forceRevealDefault={autoRevealPhotos}
                 />
               </Reveal>
             ))}

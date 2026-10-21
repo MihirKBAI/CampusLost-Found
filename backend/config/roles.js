@@ -95,6 +95,12 @@ function canReviewRecovery(user) {
   return Boolean(user.can_review_recovery)
 }
 
+function isApprovedUploader(user) {
+  if (!user) return false
+  if (isAdminUser(user)) return true
+  return Boolean(user.is_approved_uploader || user.can_upload_items)
+}
+
 module.exports = {
   ROLES,
   VALID_ROLES,
@@ -113,4 +119,5 @@ module.exports = {
   isAdminUser,
   isStaffUser,
   canReviewRecovery,
+  isApprovedUploader,
 }

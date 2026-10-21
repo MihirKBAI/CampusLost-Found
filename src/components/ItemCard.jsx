@@ -7,7 +7,14 @@ import { formatDisplayDate, getItemDate, getItemName } from "../utils/items";
 import { CalendarIcon, FoundIcon, LostIcon, PinIcon } from "./icons";
 import { inputClass } from "./fieldStyles";
 
-function ItemCard({ type, item, onUpdate, onDelete, variant = "grid" }) {
+function ItemCard({
+  type,
+  item,
+  onUpdate,
+  onDelete,
+  variant = "grid",
+  forceRevealDefault = false,
+}) {
   const { user, isAdmin } = useContext(AuthContext);
   const isOwner = Boolean(
     user && item.userId && String(item.userId) === String(user.id)
@@ -153,11 +160,13 @@ function ItemCard({ type, item, onUpdate, onDelete, variant = "grid" }) {
         <div className="flex min-w-0 flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-5 sm:p-5">
           <ItemImage
             type={type}
+            item={item}
             imageData={item.imageData}
             alt={`Photo of ${displayName}`}
             className="aspect-[4/3] w-full shrink-0 rounded-control border border-line sm:w-36"
             groupHover
             compact
+            forceRevealDefault={forceRevealDefault}
           />
 
           <div className="min-w-0 flex-1">
@@ -277,11 +286,13 @@ function ItemCard({ type, item, onUpdate, onDelete, variant = "grid" }) {
       <div className="flex-none">
         <ItemImage
           type={type}
+          item={item}
           imageData={item.imageData}
           alt={`Photo of ${displayName}`}
           className="aspect-[4/3] w-full border-b border-line"
           groupHover
           compact
+          forceRevealDefault={forceRevealDefault}
         />
       </div>
 

@@ -14,6 +14,7 @@ const {
   roleForNewAccount,
   isAdminUser,
   canReviewRecovery,
+  isApprovedUploader,
 } = require('./config/roles')
 
 const app = express()
@@ -145,6 +146,8 @@ function toSafeUser(row) {
     role: row.role || ROLES.STUDENT,
     createdAt: row.created_at,
     isAdmin: isAdminUser(row),
+    isApprovedUploader: isApprovedUploader(row),
+    canViewRevealedImages: isAdminUser(row) || isApprovedUploader(row),
     mustChangePassword: Boolean(row.must_change_password),
     permissions: {
       reviewRecovery: canReviewRecovery(row),
@@ -158,6 +161,22 @@ function setAuthCookie(res, token) {
 
 function clearAuthCookie(res) {
   res.clearCookie(COOKIE_NAME, { ...COOKIE_OPTIONS, maxAge: undefined })
+}
+
+async function getOptionalUser(req) {
+  try {
+    const token = parseCookies(req)[COOKIE_NAME]
+    if (!token) return null
+    const payload = jwt.verify(token, JWT_SECRET)
+    const result = await pool.query(
+      `SELECT id, name, email, role, prn, is_approved_uploader
+         FROM users WHERE id = $1`,
+      [payload.sub]
+    )
+    return result.rows[0] || null
+  } catch {
+    return null
+  }
 }
 
 async function requireAuth(req, res, next) {
@@ -176,7 +195,7 @@ async function requireAuth(req, res, next) {
 
     const result = await pool.query(
       `SELECT id, name, email, token_version, created_at, role, prn,
-              must_change_password, can_review_recovery
+              must_change_password, can_review_recovery, is_approved_uploader
          FROM users WHERE id = $1`,
       [payload.sub]
     )
@@ -741,6 +760,20 @@ if (process.env.NODE_ENV !== 'production') {
   })
 }
 
+function maskItemForUser(item, user) {
+  const canReveal = Boolean(
+    user &&
+      (isAdminUser(user) ||
+        isApprovedUploader(user) ||
+        (item.userId && String(item.userId) === String(user.id)))
+  )
+  return {
+    ...item,
+    hasOriginalImage: Boolean(item.imageData),
+    imageData: canReveal ? item.imageData : null,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Lost Items CRUD
 // ---------------------------------------------------------------------------
@@ -748,7 +781,9 @@ if (process.env.NODE_ENV !== 'production') {
 app.get('/api/lost-items', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM lost_items ORDER BY created_at DESC')
-    res.json({ items: toCamelCaseList(result.rows, LOST_MAP) })
+    const user = await getOptionalUser(req)
+    const items = toCamelCaseList(result.rows, LOST_MAP).map((i) => maskItemForUser(i, user))
+    res.json({ items })
   } catch (error) {
     console.error('Error fetching lost items:', error.message)
     res.status(500).json({ message: 'Failed to fetch lost items' })
@@ -765,7 +800,9 @@ app.get('/api/lost-items/:id', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Lost item not found.' })
     }
-    res.json({ item: toCamelCase(result.rows[0], LOST_MAP) })
+    const user = await getOptionalUser(req)
+    const item = maskItemForUser(toCamelCase(result.rows[0], LOST_MAP), user)
+    res.json({ item })
   } catch (error) {
     console.error('Error fetching lost item:', error.message)
     res.status(500).json({ message: 'Failed to fetch lost item' })
@@ -871,7 +908,9 @@ app.delete('/api/lost-items/:id', requireAuth, requirePasswordChange, async (req
 app.get('/api/found-items', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM found_items ORDER BY created_at DESC')
-    res.json({ items: toCamelCaseList(result.rows, FOUND_MAP) })
+    const user = await getOptionalUser(req)
+    const items = toCamelCaseList(result.rows, FOUND_MAP).map((i) => maskItemForUser(i, user))
+    res.json({ items })
   } catch (error) {
     console.error('Error fetching found items:', error.message)
     res.status(500).json({ message: 'Failed to fetch found items' })
@@ -888,7 +927,9 @@ app.get('/api/found-items/:id', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Found item not found.' })
     }
-    res.json({ item: toCamelCase(result.rows[0], FOUND_MAP) })
+    const user = await getOptionalUser(req)
+    const item = maskItemForUser(toCamelCase(result.rows[0], FOUND_MAP), user)
+    res.json({ item })
   } catch (error) {
     console.error('Error fetching found item:', error.message)
     res.status(500).json({ message: 'Failed to fetch found item' })
@@ -1168,6 +1209,56 @@ app.get('/api/my-reports', requireAuth, requirePasswordChange, async (req, res) 
   } catch (error) {
     console.error('Error fetching my reports:', error.message)
     res.status(500).json({ message: 'Failed to fetch your reports' })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// Admin User Management & Uploader Approvals
+// ---------------------------------------------------------------------------
+
+app.get('/api/admin/users', requireAuth, requirePasswordChange, async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({ message: 'Admin clearance required.' })
+  }
+  try {
+    const result = await pool.query(
+      'SELECT id, name, email, prn, role, is_approved_uploader, created_at FROM users ORDER BY created_at DESC'
+    )
+    res.json({ users: result.rows.map(toSafeUser) })
+  } catch (error) {
+    console.error('Error fetching admin users:', error.message)
+    res.status(500).json({ message: 'Failed to fetch campus users' })
+  }
+})
+
+app.patch('/api/admin/users/:id/approve-uploader', requireAuth, requirePasswordChange, async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({ message: 'Admin clearance required.' })
+  }
+  try {
+    const { id } = req.params
+    const target = await pool.query('SELECT * FROM users WHERE id = $1', [id])
+    if (target.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' })
+    }
+    const current = target.rows[0]
+    const nextApproved =
+      req.body.isApproved !== undefined
+        ? Boolean(req.body.isApproved)
+        : !current.is_approved_uploader
+
+    const updated = await pool.query(
+      'UPDATE users SET is_approved_uploader = $1 WHERE id = $2 RETURNING *',
+      [nextApproved, id]
+    )
+
+    res.json({
+      message: `User ${current.name} uploader approval updated.`,
+      user: toSafeUser(updated.rows[0]),
+    })
+  } catch (error) {
+    console.error('Error updating uploader approval:', error.message)
+    res.status(500).json({ message: 'Failed to update uploader approval' })
   }
 })
 
