@@ -1,0 +1,10 @@
+{
+  "name": "CampusFind — Campus Lost & Found with Live CCTV",
+  "description": "Campus lost and found portal with real-time CCTV stream inspector for Android IP Webcam and IP security camera feeds.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
