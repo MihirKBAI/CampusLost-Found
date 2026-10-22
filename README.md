@@ -147,26 +147,7 @@ CampusFind addresses all systemic flaws of informal mechanisms:
   - Database: PostgreSQL 15+ (production) / In-memory state engine (development).
 
 ### 3.4 User Roles and Permissions
-
-```mermaid
-graph TD
-    classDef guest fill:#f3f4f6,stroke:#9ca3af,stroke-width:1px;
-    classDef student fill:#dbeafe,stroke:#3b82f6,stroke-width:1px;
-    classDef staff fill:#dcfce7,stroke:#22c55e,stroke-width:1px;
-    classDef admin fill:#fee2e2,stroke:#ef4444,stroke-width:2px;
-
-    R1[Guest / Anonymous Viewer]:::guest
-    R2[Student / Faculty Member]:::student
-    R3[Verified Uploader / Desk Staff]:::staff
-    R4[Campus Security Administrator]:::admin
-
-    R1 -->|Browse Registries with Vector Avatars| P1[Public Registries]
-    R2 -->|Report Lost/Found Items| P2[My Reports & Claims]
-    R2 -->|View Original Photo of Own Reports| P2
-    R3 -->|Inspect Unmasked Original Photos| P3[Verified Investigation]
-    R4 -->|Moderate Reports & Grant Approvals| P4[Admin Control Panel]
-    R4 -->|Live CCTV Surveillance & Evidence| P5[Surveillance Operations]
-```
+<img width="1692" height="300" alt="image" src="https://github.com/user-attachments/assets/69c1a475-f223-4ea2-9e4a-9747d136d4f1" />
 
 ---
 
@@ -174,94 +155,14 @@ graph TD
 
 ### 4.1 System Architecture
 CampusFind follows a decoupled, three-tier client-server architecture:
+<img width="2281" height="1040" alt="image" src="https://github.com/user-attachments/assets/8e35d92c-9338-413c-97e0-0f1fa4aa53b8" />
 
-```mermaid
-flowchart TB
-    subgraph Client Tier [Presentation Tier - React 19 SPA]
-        UI[Tailwind CSS v4 & Lucide UI]
-        Router[React Router DOM v7]
-        Context[Auth, LostItem & FoundItem Contexts]
-        AvatarEngine[ItemVectorAvatar & Classifier Engine]
-    end
 
-    subgraph Server Tier [Application Tier - Express & Node.js]
-        Security[Helmet, CORS & RateLimiter Middleware]
-        AuthModule[JWT Verifier & RBAC Evaluator]
-        MaskingModule[Network Image Masking Engine]
-        ItemRoutes[Lost & Found REST Endpoints]
-        AdminRoutes[User Approval & Moderation API]
-        CCTVProxy[Live Video Stream & Snapshot Hub]
-    end
-
-    subgraph Data Tier [Persistence Tier - PostgreSQL]
-        DB[(PostgreSQL 16 Relational Engine)]
-        TUsers[users]
-        TLost[lost_items]
-        TFound[found_items]
-        TRecovery[recovery_requests]
-        TCCTV[cctv_sightings]
-    end
-
-    UI --> Router
-    Router --> Context
-    Context --> AvatarEngine
-    Context -->|JSON / Bearer Token| Security
-    Security --> AuthModule
-    AuthModule --> ItemRoutes
-    AuthModule --> AdminRoutes
-    AuthModule --> CCTVProxy
-    ItemRoutes --> MaskingModule
-    MaskingModule -->|Masked DTOs| Context
-    ItemRoutes --> DB
-    AdminRoutes --> DB
-    DB --- TUsers
-    DB --- TLost
-    DB --- TFound
-    DB --- TRecovery
-    DB --- TCCTV
-```
 
 ### 4.2 Main User Workflow
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Student as Student (Claimant)
-    participant Client as CampusFind Web App
-    participant Server as Express REST API
-    participant DB as PostgreSQL
-    actor Admin as Campus Security / Staff
+<img width="1620" height="1234" alt="image" src="https://github.com/user-attachments/assets/d5ea3b38-dd64-40bc-8e2a-b86a7375eb9e" />
 
-    Student->>Client: Open Lost Items Page
-    Client->>Server: GET /api/lost-items (Public)
-    Server->>DB: Query lost_items
-    DB-->>Server: Return items with photos
-    Server->>Server: Mask imageData = null (keep hasOriginalImage=true)
-    Server-->>Client: Return masked DTOs
-    Client-->>Student: Display Generic Vector Archetypes (Protected)
-
-    Student->>Client: Report Lost Belonging (e.g. Wallet)
-    Client->>Server: POST /api/lost-items (with Bearer Token)
-    Server->>DB: INSERT into lost_items
-    DB-->>Server: Confirm record
-    Server-->>Client: Report Created
-
-    Client->>Client: Run Possible-Match Heuristic against Found Registry
-    Client-->>Student: Surface Prospective Match ("Found Leather Wallet at Canteen")
-
-    Student->>Client: Submit Recovery Request with Proof Message
-    Client->>Server: POST /api/recovery-requests
-    Server->>DB: Store recovery request (status: pending)
-    DB-->>Server: OK
-
-    Admin->>Client: Access Admin Console
-    Client->>Server: GET /api/recovery-requests (Admin Token)
-    Server-->>Client: Full requests with Unmasked Photos
-    Admin->>Client: Verify physical custody & approve claim
-    Client->>Server: PATCH /api/recovery-requests/:id (status: approved)
-    Server->>DB: UPDATE status = 'approved'
-    Server-->>Client: Handover Logged
-```
 
 ### 4.3 Use Case View
 The primary use cases across user actors include:
@@ -272,90 +173,13 @@ The primary use cases across user actors include:
 
 ### 4.4 Database Design and Schema
 
-```mermaid
-erDiagram
-    USERS ||--o{ LOST_ITEMS : reports
-    USERS ||--o{ FOUND_ITEMS : logs
-    USERS ||--o{ RECOVERY_REQUESTS : claims
-    LOST_ITEMS ||--o{ RECOVERY_REQUESTS : references
-    FOUND_ITEMS ||--o{ RECOVERY_REQUESTS : verifies
+<img width="725" height="1244" alt="image" src="https://github.com/user-attachments/assets/e0c57dcd-6ed2-49b2-823a-12c65cbb5ae4" />
 
-    USERS {
-        int id PK
-        string name
-        string email UK
-        string prn UK
-        string password_hash
-        string role
-        boolean is_approved_uploader
-        timestamp created_at
-    }
-
-    LOST_ITEMS {
-        int id PK
-        int user_id FK
-        string item_name
-        string category
-        text description
-        string location
-        date date_lost
-        string contact
-        text image_data
-        timestamp created_at
-    }
-
-    FOUND_ITEMS {
-        int id PK
-        int user_id FK
-        string item_name
-        string category
-        text description
-        string location
-        date date_found
-        string contact
-        text image_data
-        timestamp created_at
-    }
-
-    RECOVERY_REQUESTS {
-        int id PK
-        int lost_item_id FK
-        int found_item_id FK
-        int claimant_user_id FK
-        string claimant_name
-        string claimant_contact
-        text claimant_message
-        string status
-        timestamp created_at
-    }
-
-    CCTV_SIGHTINGS {
-        int id PK
-        string camera_name
-        string location
-        string category
-        text notes
-        string snapshot_url
-        timestamp timestamp
-    }
-```
 
 ### 4.5 Heuristic Possible-Match Logic
-The system implements a multi-parameter scoring function to determine compatibility between a lost item $L$ and a found item $F$:
+The system implements a multi-parameter scoring function to determine compatibility between a lost item _L_ and a found item _F_:
 
-$$\text{Total Score}(L, F) = S_{\text{cat}}(L, F) + S_{\text{text}}(L, F) + S_{\text{loc}}(L, F) + S_{\text{temp}}(L, F)$$
-
-Where:
-1. **Category Match ($S_{\text{cat}}$)**:
-   $$S_{\text{cat}} = \begin{cases} 40 & \text{if } L.\text{category} = F.\text{category} \\ 0 & \text{otherwise} \end{cases}$$
-2. **Title & Keyword Jaccard Similarity ($S_{\text{text}}$)**:
-   $$S_{\text{text}} = 35 \times \frac{|Tokens(L.\text{name}) \cap Tokens(F.\text{name})|}{|Tokens(L.\text{name}) \cup Tokens(F.\text{name})|}$$
-3. **Location Proximity ($S_{\text{loc}}$)**:
-   $$S_{\text{loc}} = \begin{cases} 15 & \text{if } Tokens(L.\text{loc}) \cap Tokens(F.\text{loc}) \neq \emptyset \\ 0 & \text{otherwise} \end{cases}$$
-4. **Temporal Proximity ($S_{\text{temp}}$)**:
-   $$S_{\text{temp}} = \max\left(0, 10 - |\text{Date}(L) - \text{Date}(F)|_{\text{days}}\right)$$
-
-Items exceeding a threshold of $\text{Total Score} \ge 45$ are highlighted in the possible matches panel.
+<img width="1480" height="787" alt="image" src="https://github.com/user-attachments/assets/0e9d17e1-f02a-4a51-bd82-00022c84f4d9" />
 
 ### 4.6 Technology Stack
 - **Frontend Core**: React 19, TypeScript, React Router DOM v7.
