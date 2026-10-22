@@ -177,9 +177,9 @@ The primary use cases across user actors include:
 
 
 ### 4.5 Heuristic Possible-Match Logic
-The system implements a multi-parameter scoring function to determine compatibility between a lost item _L_ and a found item _F_:
 
-<img width="1480" height="787" alt="image" src="https://github.com/user-attachments/assets/0e9d17e1-f02a-4a51-bd82-00022c84f4d9" />
+<img width="1462" height="827" alt="image" src="https://github.com/user-attachments/assets/4fcf0340-ff8d-4d3f-ac6c-d5c6d92186ce" />
+
 
 ### 4.6 Technology Stack
 - **Frontend Core**: React 19, TypeScript, React Router DOM v7.
